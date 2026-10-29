@@ -31,7 +31,7 @@ import matplotlib.pyplot as plt
 # 0. Пути к готовым файлам (результаты ноутбука svetlogorsk_pipeline.ipynb)
 # ---------------------------------------------------------------------------
 BASE_DIR = Path.cwd()
-RESULTS_DIR = BASE_DIR / "results"
+RESULTS_DIR = BASE_DIR / "examples" / "results"
 
 FILES = {
     "boundary": RESULTS_DIR / "boundary.geojson",
@@ -50,6 +50,9 @@ FILES = {
 # ---------------------------------------------------------------------------
 # 1. Загрузка готовых данных
 # ---------------------------------------------------------------------------
+print(f"Рабочая директория: {BASE_DIR}")
+print(f"Папка результатов: {RESULTS_DIR}")
+print(f"Содержимое results/: {[f.name for f in RESULTS_DIR.iterdir()] if RESULTS_DIR.exists() else 'папка не существует'}")
 print("Загрузка готовых файлов из results/ ...")
 
 boundary = gpd.read_file(FILES["boundary"])
@@ -69,6 +72,43 @@ acc_mx = pd.read_csv(FILES["accessibility_matrix"], index_col=0)
 # Связи между кварталами (links_df)
 links_path = FILES["links"]
 links_df = pd.read_csv(links_path, index_col=0) if links_path.exists() else pd.DataFrame()
+
+# Список всех файлов результатов
+results_files_list = []
+if RESULTS_DIR.exists():
+    for f in sorted(RESULTS_DIR.iterdir()):
+        if f.is_file():
+            results_files_list.append((f.name, f.stat().st_size))
+
+# Отладочная информация
+print(f"  morpotypes_df.shape = {morphotypes_df.shape}")
+print(f"  morpotypes_df.columns = {list(morphotypes_df.columns)}")
+morph_col = None
+for col in morphotypes_df.columns:
+    if 'morph' in col.lower():
+        morph_col = col
+        break
+if morph_col:
+    morph_counts = morphotypes_df[morph_col].value_counts()
+    print(f"  morph_counts ({morph_col}): {dict(morph_counts.head(10))}")
+else:
+    morph_counts = pd.Series()
+    print("  morph_counts: пусто (нет колонки с 'morph')")
+
+strelka_col = None
+for col in morphotypes_df.columns:
+    if 'morph' in col.lower() and col != morph_col:
+        strelka_col = col
+        break
+if strelka_col:
+    strelka_counts = morphotypes_df[strelka_col].value_counts()
+    print(f"  strelka_counts ({strelka_col}): {dict(strelka_counts.head(10))}")
+else:
+    strelka_counts = pd.Series()
+    print("  strelka_counts: пусто")
+
+print(f"  links_df.shape = {links_df.shape}")
+print(f"  links_df.head():\n{links_df.head()}")
 
 print("Все файлы загружены.")
 
@@ -559,6 +599,44 @@ html = f"""<!DOCTYPE html>
             <tr><td>Минимальное время</td><td>{min_travel_time:.1f} мин</td></tr>
             <tr><td>Максимальное время</td><td>{max_travel_time:.1f} мин</td></tr>
         </table>
+        </div>
+
+        <h3>Распределение морфотипов застройки (spacematrix)</h3>
+        <div class="table-wrap">
+        <table>
+            <tr><th>Морфотип</th><th>Количество кварталов</th></tr>
+            {''.join(f"<tr><td>{idx}</td><td>{cnt}</td></tr>" for idx, cnt in morph_counts.items()) if len(morph_counts) > 0 else "<tr><td colspan=2>Нет данных</td></tr>"}
+        </table>
+        <p style="font-size: 11px; color: #666;">Всего кварталов с морфотипом: {len(morph_counts)}</p>
+        </div>
+
+        <h3>Морфотипы застройки (strelka)</h3>
+        <div class="table-wrap">
+        <table>
+            <tr><th>Морфотип</th><th>Количество кварталов</th></tr>
+            {''.join(f"<tr><td>{idx}</td><td>{cnt}</td></tr>" for idx, cnt in strelka_counts.items()) if len(strelka_counts) > 0 else "<tr><td colspan=2>Нет данных</td></tr>"}
+        </table>
+        </div>
+
+        <h3>Связи между кварталами (top-20 по времени в пути)</h3>
+        <div class="table-wrap">
+        <table>
+            <tr><th>Источник</th><th>Цель</th><th>Время (мин)</th></tr>
+            {''.join(f"<tr><td>{row['source']}</td><td>{row['target']}</td><td>{row['value']:.1f}</td></tr>" for _, row in links_df.head(20).iterrows()) if len(links_df) > 0 else "<tr><td colspan=3>Нет данных</td></tr>"}
+        </table>
+        </div>
+
+        <h3>Все файлы результатов</h3>
+        <div class="table-wrap">
+        <table>
+            <tr><th>Файл</th><th>Размер (байт)</th></tr>
+            {''.join(f"<tr><td>{name}</td><td>{size}</td></tr>" for name, size in results_files_list) if results_files_list else "<tr><td colspan=2>Нет файлов</td></tr>"}
+        </table>
+        </div>
+
+        <h3>Все здания и кварталы (первые 20 строк)</h3>
+        <div class="table-wrap">
+        {buildings_blocks.drop(columns=['geometry']).head(20).to_html(index=False, classes="dataframe")}
         </div>
 
     </div>
