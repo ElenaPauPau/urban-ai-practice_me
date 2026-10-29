@@ -210,8 +210,8 @@ plt.close(fig)
 # 6. Генерация интерактивных карт (folium)
 # ---------------------------------------------------------------------------
 
-# Базовая карта без подложки
-m = folium.Map(location=[center_lat, center_lon], zoom_start=13, tiles=None)
+# Базовая карта без подложки и без кнопок зума
+m = folium.Map(location=[center_lat, center_lon], zoom_start=13, tiles=None, zoom_control=False)
 
 # Слой границы
 folium.GeoJson(
@@ -472,7 +472,9 @@ html = f"""<!DOCTYPE html>
         tr:nth-child(even) {{ background: #f2f2f2; }}
         .table-wrap {{ overflow-x: auto; max-width: 100%; }}
         .table-wrap table {{ white-space: nowrap; }}
-        .map-container {{ height: 500px; border: 1px solid #ddd; border-radius: 6px; }}
+        .map-container {{ height: 500px; border: 1px solid #ddd; border-radius: 6px; position: relative; }}
+        /* Убрать кнопки зума с карты */
+        .leaflet-control-zoom {{ display: none !important; }}
         .chart-row {{ display: flex; gap: 20px; flex-wrap: wrap; }}
         .chart-col {{ flex: 1; min-width: 300px; }}
         .conclusion {{ background: #eafaf1; border-left: 5px solid #27ae60; padding: 15px; margin-top: 20px; }}
