@@ -44,6 +44,7 @@ FILES = {
     "density_indicators": RESULTS_DIR / "density_indicators.csv",
     "morphotypes": RESULTS_DIR / "morphotypes.csv",
     "area_accessibility": RESULTS_DIR / "area_accessibility.csv",
+    "links": RESULTS_DIR / "links.csv",
 }
 
 # ---------------------------------------------------------------------------
@@ -64,6 +65,10 @@ area_acc_df = pd.read_csv(FILES["area_accessibility"])
 
 # Матрица доступности (время в пути между кварталами)
 acc_mx = pd.read_csv(FILES["accessibility_matrix"], index_col=0)
+
+# Связи между кварталами (links_df)
+links_path = FILES["links"]
+links_df = pd.read_csv(links_path, index_col=0) if links_path.exists() else pd.DataFrame()
 
 print("Все файлы загружены.")
 
@@ -205,17 +210,8 @@ plt.close(fig)
 # 6. Генерация интерактивных карт (folium)
 # ---------------------------------------------------------------------------
 
-# Базовая карта (без неявного тайлового слоя, чтобы подложку можно было отключить)
+# Базовая карта без подложки
 m = folium.Map(location=[center_lat, center_lon], zoom_start=13, tiles=None)
-
-# Явно добавляем подложку как переключаемый слой (overlay=True, чтобы можно было выключить)
-folium.TileLayer(
-    tiles="OpenStreetMap",
-    name="Подложка OpenStreetMap",
-    overlay=True,
-    control=True,
-    show=True,
-).add_to(m)
 
 # Слой границы
 folium.GeoJson(
@@ -434,11 +430,18 @@ bottom_prov = provision_df.nsmallest(5, "provision_strong") if "provision_strong
 top_fsi = density_df.nlargest(5, "fsi") if "fsi" in density_df.columns else density_df.head(5)
 
 # Морфотипы подсчёт (spacematrix + strelka)
-morph_counts = morphotypes_df["morphotype"].value_counts() if "morphotype" in morphotypes_df.columns else pd.Series()
+morph_col = "morphotype" if "morphotype" in morphotypes_df.columns else None
+if morph_col is None:
+    # ищем любую колонку со словом morph
+    for col in morphotypes_df.columns:
+        if "morph" in col.lower():
+            morph_col = col
+            break
+morph_counts = morphotypes_df[morph_col].value_counts() if morph_col else pd.Series()
 # Ищем колонку со стrelka-морфотипами (может называться morphotype_strelka, morphotype.1 и т.д.)
 strelka_col = None
 for col in morphotypes_df.columns:
-    if "morph" in col.lower() and col != "morphotype":
+    if "morph" in col.lower() and col != morph_col:
         strelka_col = col
         break
 strelka_counts = morphotypes_df[strelka_col].value_counts() if strelka_col else pd.Series()
@@ -467,6 +470,8 @@ html = f"""<!DOCTYPE html>
         th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
         th {{ background: #34495e; color: white; }}
         tr:nth-child(even) {{ background: #f2f2f2; }}
+        .table-wrap {{ overflow-x: auto; max-width: 100%; }}
+        .table-wrap table {{ white-space: nowrap; }}
         .map-container {{ height: 500px; border: 1px solid #ddd; border-radius: 6px; }}
         .chart-row {{ display: flex; gap: 20px; flex-wrap: wrap; }}
         .chart-col {{ flex: 1; min-width: 300px; }}
@@ -519,15 +524,22 @@ html = f"""<!DOCTYPE html>
         <h2>Таблицы показателей</h2>
 
         <h3>Топ-5 кварталов по обеспечению школами (provision_strong)</h3>
+        <div class="table-wrap">
         {top_prov.to_html(index=False, classes="dataframe")}
+        </div>
 
         <h3>5 кварталов с наименьшим обеспечением школами</h3>
+        <div class="table-wrap">
         {bottom_prov.to_html(index=False, classes="dataframe")}
+        </div>
 
         <h3>Топ-5 кварталов по плотности застройки (FSI)</h3>
+        <div class="table-wrap">
         {top_fsi.to_html(index=False, classes="dataframe")}
+        </div>
 
         <h3>Все индикаторы плотности (средние по территории)</h3>
+        <div class="table-wrap">
         <table>
             <tr><th>Показатель</th><th>Значение</th></tr>
             <tr><td>FSI (плотность застройки)</td><td>{avg_fsi:.3f}</td></tr>
@@ -536,25 +548,17 @@ html = f"""<!DOCTYPE html>
             <tr><td>L (средняя этажность)</td><td>{avg_l:.3f}</td></tr>
             <tr><td>OSR (открытое пространство)</td><td>{avg_osr:.3f}</td></tr>
         </table>
+        </div>
 
         <h3>Время в пути (матрица доступности)</h3>
+        <div class="table-wrap">
         <table>
             <tr><td>Среднее время между кварталами</td><td>{avg_travel_time:.1f} мин</td></tr>
             <tr><td>Минимальное время</td><td>{min_travel_time:.1f} мин</td></tr>
             <tr><td>Максимальное время</td><td>{max_travel_time:.1f} мин</td></tr>
         </table>
+        </div>
 
-        <h3>Распределение морфотипов застройки (spacematrix)</h3>
-        <table>
-            <tr><th>Морфотип</th><th>Количество кварталов</th></tr>
-            {''.join(f"<tr><td>{idx}</td><td>{cnt}</td></tr>" for idx, cnt in morph_counts.items())}
-        </table>
-
-        <h3>Морфотипы застройки (strelka)</h3>
-        <table>
-            <tr><th>Морфотип</th><th>Количество кварталов</th></tr>
-            {''.join(f"<tr><td>{idx}</td><td>{cnt}</td></tr>" for idx, cnt in strelka_counts.items())}
-        </table>
     </div>
 
     <!-- Источники, единицы и ограничения -->
